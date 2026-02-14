@@ -2,99 +2,95 @@ import 'dart:developer' as developer;
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/network/api_client.dart';
 import '../models/vehicle_model.dart';
+import '../../domain/entities/vehicle.dart';
 
 class VehicleRemoteDataSource {
-  final ApiClient _apiClient;
+  final ApiClient _apiClient = ApiClient();
 
-  VehicleRemoteDataSource(this._apiClient);
+  VehicleRemoteDataSource();
 
   /// Récupérer tous les véhicules d'un chauffeur
-  Future<List<VehicleModel>> getDriverVehicles(String chauffeurId) async {
+  Future<List<Vehicle>> getVehiclesByChauffeur(String chauffeurId) async {
     try {
       developer.log('🚗 Récupération des véhicules du chauffeur $chauffeurId...', name: 'VehicleDataSource');
       
-      final response = await _apiClient.get('${ApiConstants.chauffeurVehicules}/$chauffeurId/vehicules');
-      final responseData = response.data as Map<String, dynamic>;
+      final response = await _apiClient.get('${ApiConstants.vehicules}/chauffeur/$chauffeurId');
       
-      if (responseData['status'] == 'success' && responseData['data'] != null) {
-        final List<dynamic> vehiculesJson = responseData['data'] as List<dynamic>;
-        final vehicules = vehiculesJson
-            .map((json) => VehicleModel.fromJson(json as Map<String, dynamic>))
-            .toList();
+      // Backend peut retourner différents formats
+      List<dynamic> vehiculesJson = [];
+      
+      if (response.data is List) {
+        // Format: [vehicule1, vehicule2, ...]
+        vehiculesJson = response.data as List<dynamic>;
+      } else if (response.data is Map) {
+        final data = response.data as Map<String, dynamic>;
         
-        developer.log('✅ ${vehicules.length} véhicules récupérés', name: 'VehicleDataSource');
-        return vehicules;
-      } else {
-        return [];
+        if (data['data'] != null && data['data'] is List) {
+          // Format: {data: [vehicule1, vehicule2, ...]}
+          vehiculesJson = data['data'] as List<dynamic>;
+        } else if (data['vehicule'] != null) {
+          // Format: {message: "...", vehicule: {...}}
+          vehiculesJson = [data['vehicule']];
+        } else if (data.containsKey('id_vehicule')) {
+          // Format: {id_vehicule: 1, marque: "...", ...}
+          vehiculesJson = [data];
+        }
       }
+      
+      final vehicules = vehiculesJson
+          .map((json) => VehicleModel.fromJson(json as Map<String, dynamic>))
+          .toList();
+      
+      developer.log('✅ ${vehicules.length} véhicules récupérés', name: 'VehicleDataSource');
+      return vehicules;
     } catch (e) {
       developer.log('❌ Erreur récupération véhicules: $e', name: 'VehicleDataSource');
       rethrow;
     }
   }
 
-  /// Récupérer un véhicule spécifique
-  Future<VehicleModel> getVehicle(String vehicleId) async {
+  /// Ajouter un nouveau véhicule
+  Future<Vehicle> addVehicle({
+    required String idChauffeur,
+    required String marque,
+    required String modele,
+    required String immatriculation,
+    required int annee,
+    required String couleur,
+    required String typeVehicule,
+  }) async {
     try {
-      developer.log('🚗 Récupération du véhicule $vehicleId...', name: 'VehicleDataSource');
-      
-      final response = await _apiClient.get('${ApiConstants.vehicules}/$vehicleId');
-      final responseData = response.data as Map<String, dynamic>;
-      
-      if (responseData['status'] == 'success' && responseData['data'] != null) {
-        developer.log('✅ Véhicule récupéré', name: 'VehicleDataSource');
-        return VehicleModel.fromJson(responseData['data'] as Map<String, dynamic>);
-      } else {
-        throw Exception('Véhicule non trouvé');
-      }
-    } catch (e) {
-      developer.log('❌ Erreur récupération véhicule: $e', name: 'VehicleDataSource');
-      rethrow;
-    }
-  }
-
-  /// Créer un nouveau véhicule
-  Future<VehicleModel> createVehicle(VehicleModel vehicle) async {
-    try {
-      developer.log('🚗 Création d\'un nouveau véhicule...', name: 'VehicleDataSource');
+      developer.log('🚗 Ajout d\'un nouveau véhicule...', name: 'VehicleDataSource');
       
       final response = await _apiClient.post(
         ApiConstants.vehicules,
-        data: vehicle.toJson(),
+        data: {
+          'id_chauffeur': idChauffeur,
+          'marque': marque,
+          'modele': modele,
+          'immatriculation': immatriculation,
+          'annee': annee,
+          'couleur': couleur,
+          'type_vehicule': typeVehicule,
+        },
       );
-      final responseData = response.data as Map<String, dynamic>;
       
-      if (responseData['status'] == 'success' && responseData['data'] != null) {
-        developer.log('✅ Véhicule créé', name: 'VehicleDataSource');
-        return VehicleModel.fromJson(responseData['data'] as Map<String, dynamic>);
+      // Backend may return vehicle directly or wrapped
+      Map<String, dynamic> vehicleJson;
+      if (response.data is Map) {
+        if (response.data['data'] != null) {
+          vehicleJson = response.data['data'] as Map<String, dynamic>;
+        } else {
+          vehicleJson = response.data as Map<String, dynamic>;
+        }
       } else {
-        throw Exception(responseData['message'] ?? 'Erreur lors de la création');
+        throw Exception('Format de réponse invalide');
       }
-    } catch (e) {
-      developer.log('❌ Erreur création véhicule: $e', name: 'VehicleDataSource');
-      rethrow;
-    }
-  }
-
-  /// Mettre à jour un véhicule
-  Future<VehicleModel> updateVehicle(String vehicleId, VehicleModel vehicle) async {
-    try {
-      developer.log('🚗 Mise à jour du véhicule $vehicleId...', name: 'VehicleDataSource');
       
-      final response = await _apiClient.put(
-        '${ApiConstants.vehicules}/$vehicleId',
-        data: vehicle.toJson(),
-      );
-      final responseData = response.data as Map<String, dynamic>;
-      
-      if (responseData['status'] == 'success' && responseData['data'] != null) {
-        developer.log('✅ Véhicule mis à jour', name: 'VehicleDataSource');
-        return VehicleModel.fromJson(responseData['data'] as Map<String, dynamic>);
-      } else {
-        throw Exception(responseData['message'] ?? 'Erreur lors de la mise à jour');
-      }
+      developer.log('✅ Véhicule ajouté', name: 'VehicleDataSource');
+      return VehicleModel.fromJson(vehicleJson);
     } catch (e) {
-      developer.log('❌ Erreur mise à jour véhicule: $e', name: 'VehicleDataSource');
+      developer.log('❌ Erreur ajout véhicule: $e', name: 'VehicleDataSource');
       rethrow;
     }
   }

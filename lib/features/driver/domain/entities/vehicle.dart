@@ -1,25 +1,21 @@
 class Vehicle {
-  final int? id;
-  final int driverId;
-  final String vehicleType; // 'sedan', 'suv', 'van', 'motorcycle'
-  final String brand;
-  final String model;
-  final String color;
-  final String licensePlate;
-  final int year;
-  final int seats;
-  final bool isActive;
+  final String? id;
+  final String idChauffeur;
+  final String marque;
+  final String modele;
+  final String immatriculation;
+  final int annee;
+  final String couleur;
+  final String typeVehicule;
 
   Vehicle({
     this.id,
-    required this.driverId,
-    required this.vehicleType,
-    required this.brand,
-    required this.model,
-    required this.color,
-    required this.licensePlate,
-    required this.year,
-    required this.seats,
-    this.isActive = true,
+    required this.idChauffeur,
+    required this.marque,
+    required this.modele,
+    required this.immatriculation,
+    required this.annee,
+    required this.couleur,
+    required this.typeVehicule,
   });
 }

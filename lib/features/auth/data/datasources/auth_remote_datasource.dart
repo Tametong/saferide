@@ -2,6 +2,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../models/user_model.dart';
 import 'dart:developer' as developer;
+import 'package:dio/dio.dart';
 
 class AuthRemoteDataSource {
   final ApiClient apiClient;
@@ -138,29 +139,47 @@ class AuthRemoteDataSource {
     developer.log('🎭 Role: $role', name: 'AuthDataSource');
     developer.log('🌐 URL: ${ApiConstants.register}', name: 'AuthDataSource');
     
-    final Map<String, dynamic> data = {
-      'nom': nom,
-      'prenom': prenom,
-      'email': email,
-      'password': password,
-      'telephone': telephone,
-      'role': role,
-    };
-
-    // Ajouter les informations du conducteur si présentes
-    if (role == 'chauffeur') {
-      if (licenseNumber != null) {
-        data['numero_permis'] = licenseNumber;
-        developer.log('🪪 Numéro permis: $licenseNumber', name: 'AuthDataSource');
-      }
-      if (idPhotoPath != null) {
-        data['photo_piece_identite'] = idPhotoPath;
-        developer.log('📸 Photo pièce identité: ${idPhotoPath.substring(0, 50)}...', name: 'AuthDataSource');
-      }
-    }
-
     try {
-      developer.log('📤 Request data: $data', name: 'AuthDataSource');
+      dynamic data;
+      
+      // Si c'est un chauffeur avec une photo, utiliser FormData
+      if (role == 'chauffeur' && idPhotoPath != null) {
+        developer.log('📸 Upload de la photo: $idPhotoPath', name: 'AuthDataSource');
+        
+        final formData = FormData.fromMap({
+          'nom': nom,
+          'prenom': prenom,
+          'email': email,
+          'password': password,
+          'telephone': telephone,
+          'role': role,
+          'numero_permis': licenseNumber ?? '',
+          'photo_piece_identite': await MultipartFile.fromFile(
+            idPhotoPath,
+            filename: idPhotoPath.split('/').last,
+          ),
+        });
+        
+        data = formData;
+        developer.log('📤 Envoi avec FormData (multipart)', name: 'AuthDataSource');
+      } else {
+        // Sinon, utiliser un Map classique
+        data = {
+          'nom': nom,
+          'prenom': prenom,
+          'email': email,
+          'password': password,
+          'telephone': telephone,
+          'role': role,
+        };
+        
+        if (role == 'chauffeur' && licenseNumber != null) {
+          data['numero_permis'] = licenseNumber;
+          developer.log('🪪 Numéro permis: $licenseNumber', name: 'AuthDataSource');
+        }
+        
+        developer.log('📤 Request data: $data', name: 'AuthDataSource');
+      }
       
       final response = await apiClient.post(
         ApiConstants.register,
@@ -180,11 +199,17 @@ class AuthRemoteDataSource {
       }
       
       final token = response.data['token'];
-      developer.log('🎫 Token reçu: ${token?.substring(0, 20)}...', name: 'AuthDataSource');
+      if (token != null) {
+        developer.log('🎫 Token reçu: ${token.substring(0, 20)}...', name: 'AuthDataSource');
+        apiClient.setAuthToken(token);
+      } else {
+        developer.log('⚠️ Aucun token reçu', name: 'AuthDataSource');
+      }
       
-      apiClient.setAuthToken(token);
+      // Le backend retourne les données dans 'data' ou 'user'
+      dynamic userData = response.data['data'] ?? response.data['user'];
       
-      final user = UserModel.fromJson(response.data['user']);
+      final user = UserModel.fromJson(userData);
       developer.log('👤 User créé: ${user.email} (${user.role})', name: 'AuthDataSource');
       
       return user;

@@ -15,6 +15,10 @@ import '../../../wallet/domain/entities/wallet.dart';
 import '../../data/models/vehicle_type_model.dart';
 import '../../domain/entities/available_driver.dart';
 import '../../data/datasources/chauffeur_remote_datasource.dart';
+import '../../data/datasources/ride_request_datasource.dart';
+import '../../data/datasources/payment_service.dart';
+import '../../data/models/ride_request_model.dart';
+import '../../domain/entities/ride_request.dart';
 import 'dart:developer' as developer;
 
 class RideBookingScreen extends StatefulWidget {
@@ -38,6 +42,8 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
   
   late final ChauffeurRemoteDataSource _chauffeurDataSource;
   late final WalletRemoteDataSource _walletDataSource;
+  late final RideRequestDataSource _rideRequestDataSource;
+  late final PaymentService _paymentService;
   
   List<VehicleTypeModel> _vehicleTypes = [];
   VehicleTypeModel? _selectedVehicleType;
@@ -52,8 +58,11 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
   @override
   void initState() {
     super.initState();
-    _chauffeurDataSource = ChauffeurRemoteDataSource(ApiClient());
-    _walletDataSource = WalletRemoteDataSource(ApiClient());
+    final apiClient = ApiClient();
+    _chauffeurDataSource = ChauffeurRemoteDataSource(apiClient);
+    _walletDataSource = WalletRemoteDataSource(apiClient);
+    _rideRequestDataSource = RideRequestDataSource(apiClient);
+    _paymentService = PaymentService(apiClient, _walletDataSource);
     _getCurrentLocation();
     _vehicleTypes = VehicleTypeModel.getDefaultTypes();
     _loadAvailableDrivers();
@@ -162,17 +171,27 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
   }
   
   Future<void> _addDriverMarkers() async {
-    // Utiliser des marqueurs simples au lieu d'icônes personnalisées
+    // Créer une icône de voiture personnalisée pour les chauffeurs
+    final BitmapDescriptor carIcon = await BitmapDescriptor.fromAssetImage(
+      const ImageConfiguration(size: Size(48, 48)),
+      'assets/images/car_icon.png',
+    ).catchError((error) {
+      // Si l'image n'existe pas, utiliser l'icône par défaut
+      developer.log('⚠️ Icône de voiture non trouvée, utilisation icône par défaut', name: 'RideBooking');
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
+    });
+    
     for (var driver in _availableDrivers) {
       _markers.add(
         Marker(
           markerId: MarkerId('driver_${driver.id}'),
           position: driver.position,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+          icon: carIcon,
           infoWindow: InfoWindow(
             title: '${driver.vehicleIcon} ${driver.name}',
             snippet: '${driver.vehicleType} - ⭐ ${driver.rating}',
           ),
+          rotation: 0, // Orientation de la voiture
         ),
       );
     }
@@ -430,6 +449,192 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
     if (_currentPosition != null) {
       controller.animateCamera(
         CameraUpdate.newLatLngZoom(_currentPosition!, 15),
+      );
+    }
+  }
+
+  Future<void> _confirmRideRequest() async {
+    if (_currentPosition == null || _destinationPosition == null || _selectedVehicleType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez sélectionner une destination et un type de véhicule'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.user;
+
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vous devez être connecté pour réserver une course'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    // Afficher le loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      ),
+    );
+
+    try {
+      // 1. Calculer le prix
+      final pricePoints = _paymentService.calculatePrice(_distanceKm!, _selectedVehicleType!.name);
+      final priceFCFA = _paymentService.convertPointsToFCFA(pricePoints);
+
+      developer.log('💰 Prix calculé: $pricePoints points ($priceFCFA FCFA)', name: 'RideBooking');
+
+      // 2. Vérifier le solde
+      final hasSufficientBalance = await _paymentService.checkSufficientBalance(int.parse(user.id), pricePoints);
+
+      if (!hasSufficientBalance) {
+        if (!mounted) return;
+        Navigator.pop(context); // Fermer le loading
+        
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Solde insuffisant'),
+            content: Text(
+              'Vous avez besoin de $pricePoints points ($priceFCFA FCFA) pour cette course.\n\n'
+              'Votre solde actuel: ${_userWallet?.soldePoints ?? 0} points',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Annuler'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  context.push('/wallet');
+                },
+                child: const Text('Recharger'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      // 3. Chercher le chauffeur le plus proche
+      developer.log('🔍 Recherche du chauffeur le plus proche...', name: 'RideBooking');
+      final nearestDriver = await _findNearestDriver(_selectedVehicleType!.name);
+
+      if (nearestDriver == null) {
+        if (!mounted) return;
+        Navigator.pop(context); // Fermer le loading
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Aucun chauffeur disponible pour ce type de véhicule'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+
+      developer.log('✅ Chauffeur trouvé: ${nearestDriver.name}', name: 'RideBooking');
+
+      // 4. Créer la demande de course
+      final rideRequest = RideRequestModel(
+        passengerId: int.parse(user.id),
+        driverId: int.tryParse(nearestDriver.id),
+        departLat: _currentPosition!.latitude,
+        departLng: _currentPosition!.longitude,
+        arriveeLat: _destinationPosition!.latitude,
+        arriveeLng: _destinationPosition!.longitude,
+        distanceKm: _distanceKm!,
+        prixPoints: pricePoints,
+        vehicleType: _selectedVehicleType!.name,
+        statut: RideRequest.statusPending,
+      );
+
+      developer.log('🚗 Création de la course...', name: 'RideBooking');
+      final createdRide = await _rideRequestDataSource.createRideRequest(
+        rideRequest,
+        departAddress: 'Ma position', // TODO: Get actual address from reverse geocoding
+        destAddress: _searchController.text, // Destination address from search
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context); // Fermer le loading
+
+      developer.log('✅ Course créée avec succès: ID ${createdRide.id}', name: 'RideBooking');
+
+      // 5. Afficher la confirmation
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Course confirmée !'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Chauffeur: ${nearestDriver.name}'),
+              Text('Note: ${nearestDriver.rating}⭐'),
+              Text('Véhicule: ${nearestDriver.vehicleType}'),
+              const SizedBox(height: 12),
+              Text('Distance: ${_distanceKm!.toStringAsFixed(2)} km'),
+              Text('Prix: $pricePoints points ($priceFCFA FCFA)'),
+              const SizedBox(height: 12),
+              const Text(
+                'Le chauffeur a été notifié de votre demande.',
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                // Naviguer vers l'écran de course active
+                context.push('/active-ride', extra: {
+                  'ride': createdRide,
+                  'isDriver': false,
+                });
+              },
+              child: const Text('Voir ma course'),
+            ),
+          ],
+        ),
+      );
+
+      // 6. Réinitialiser l'interface
+      setState(() {
+        _destinationPosition = null;
+        _showVehicleSelection = false;
+        _selectedVehicleType = null;
+        _polylines.clear();
+        _markers.removeWhere((m) => m.markerId.value == 'destination');
+        _searchController.clear();
+      });
+      
+      // Recharger le wallet pour afficher le nouveau solde
+      _loadUserWallet();
+      _addDriverMarkers();
+
+    } catch (e) {
+      developer.log('❌ Erreur lors de la confirmation: $e', name: 'RideBooking');
+      
+      if (!mounted) return;
+      Navigator.pop(context); // Fermer le loading
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: $e'),
+          backgroundColor: AppColors.error,
+          duration: const Duration(seconds: 5),
+        ),
       );
     }
   }
@@ -883,13 +1088,15 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
             
             // Liste horizontale des véhicules
             SizedBox(
-              height: 150, // Augmenté de 140 à 150
+              height: 150,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: _vehicleTypes.length,
                 itemBuilder: (context, index) {
                   final vehicleType = _vehicleTypes[index];
-                  final price = vehicleType.calculatePrice(_distanceKm!);
+                  // Calculer le prix en points selon le type de véhicule
+                  final pricePoints = _paymentService.calculatePrice(_distanceKm!, vehicleType.name);
+                  final priceFCFA = _paymentService.convertPointsToFCFA(pricePoints);
                   final estimatedTime = _calculateEstimatedTime(_distanceKm!);
                   final isSelected = _selectedVehicleType?.id == vehicleType.id;
                   
@@ -920,28 +1127,41 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
                           // Emoji du véhicule
                           Text(
                             vehicleType.icon,
-                            style: const TextStyle(fontSize: 36), // Réduit de 40 à 36
+                            style: const TextStyle(fontSize: 36),
                           ),
-                          const SizedBox(height: 6), // Réduit de 8 à 6
+                          const SizedBox(height: 6),
                           
                           // Nom
                           Text(
                             vehicleType.name,
                             style: AppTextStyles.body.copyWith(
                               fontWeight: FontWeight.bold,
-                              fontSize: 14, // Réduit de 15 à 14
+                              fontSize: 14,
                               color: isSelected ? Colors.white : Colors.black,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 3), // Réduit de 4 à 3
+                          const SizedBox(height: 3),
                           
-                          // Prix et places
+                          // Prix en points et FCFA
                           Text(
-                            '${price.toStringAsFixed(0)}frs → ${vehicleType.capacity}pts',
+                            '$pricePoints pts',
                             style: AppTextStyles.body.copyWith(
-                              fontSize: 12, // Réduit de 13 à 12
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: isSelected ? Colors.white : AppColors.primary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          
+                          // Prix en FCFA
+                          Text(
+                            '${priceFCFA.toStringAsFixed(0)} FCFA',
+                            style: AppTextStyles.body.copyWith(
+                              fontSize: 11,
                               color: isSelected ? Colors.white.withValues(alpha: 0.9) : AppColors.textSecondary,
                             ),
                             maxLines: 1,
@@ -969,38 +1189,7 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () async {
-                  // Chercher le chauffeur le plus proche
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (context) => const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
-                    ),
-                  );
-                  
-                  final nearestDriver = await _findNearestDriver(_selectedVehicleType!.name);
-                  
-                  if (!mounted) return;
-                  Navigator.pop(context); // Fermer le loading
-                  
-                  if (nearestDriver != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Chauffeur trouvé: ${nearestDriver.name} (${nearestDriver.rating}⭐) - ${_selectedVehicleType!.calculatePrice(_distanceKm!).toStringAsFixed(0)} FCFA',
-                        ),
-                        backgroundColor: Colors.green,
-                        duration: const Duration(seconds: 3),
-                      ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Aucun chauffeur disponible pour ce type de véhicule'),
-                        backgroundColor: Colors.orange,
-                      ),
-                    );
-                  }
+                  await _confirmRideRequest();
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
@@ -1012,7 +1201,7 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
                   ),
                 ),
                 child: Text(
-                  'Confirm',
+                  'Confirmer la course',
                   style: AppTextStyles.body.copyWith(
                     color: AppColors.primary,
                     fontWeight: FontWeight.bold,

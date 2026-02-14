@@ -63,7 +63,13 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       final success = await authProvider.verifyOtp(_otpCode);
 
       if (success && mounted) {
-        context.go('/ride-booking');
+        // Redirect based on user role
+        final user = authProvider.user;
+        if (user?.isDriver == true) {
+          context.go('/driver/home');
+        } else {
+          context.go('/ride-booking');
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -127,7 +133,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         ),
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -184,20 +190,25 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               
               // Champs OTP
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(6, (index) {
-                  return _OtpDigitField(
-                    controller: _controllers[index],
-                    focusNode: _focusNodes[index],
-                    onChanged: (value) {
-                      if (value.isNotEmpty && index < 5) {
-                        _focusNodes[index + 1].requestFocus();
-                      }
-                      if (value.isEmpty && index > 0) {
-                        _focusNodes[index - 1].requestFocus();
-                      }
-                      setState(() {});
-                    },
+                  return Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: MediaQuery.of(context).size.width > 360 ? 4.0 : 2.0,
+                    ),
+                    child: _OtpDigitField(
+                      controller: _controllers[index],
+                      focusNode: _focusNodes[index],
+                      onChanged: (value) {
+                        if (value.isNotEmpty && index < 5) {
+                          _focusNodes[index + 1].requestFocus();
+                        }
+                        if (value.isEmpty && index > 0) {
+                          _focusNodes[index - 1].requestFocus();
+                        }
+                        setState(() {});
+                      },
+                    ),
                   );
                 }),
               ),
@@ -220,22 +231,30 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               const SizedBox(height: AppSpacing.lg),
               
               // Renvoyer le code
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text(
                     'Vous n\'avez pas reçu le code ? ',
                     style: AppTextStyles.body.copyWith(
                       color: AppColors.textSecondary,
+                      fontSize: 14,
                     ),
                   ),
                   TextButton(
                     onPressed: _resendOtp,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 36),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                     child: Text(
                       'Renvoyer',
                       style: AppTextStyles.body.copyWith(
                         color: AppColors.primary,
                         fontWeight: FontWeight.w600,
+                        fontSize: 14,
                       ),
                     ),
                   ),
@@ -263,8 +282,8 @@ class _OtpDigitField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 50,
-      height: 60,
+      width: MediaQuery.of(context).size.width > 360 ? 50 : 45,
+      height: MediaQuery.of(context).size.width > 360 ? 60 : 55,
       child: TextField(
         controller: controller,
         focusNode: focusNode,

@@ -44,7 +44,10 @@ class _WalletScreenState extends State<WalletScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final wallet = await _walletDataSource.getWallet(user.id);
+      final wallet = await _walletDataSource.getWallet(
+        user.id,
+        isChauffeur: user.isDriver,
+      );
       setState(() {
         _wallet = wallet;
         _isLoading = false;
@@ -88,8 +91,12 @@ class _WalletScreenState extends State<WalletScreen> {
       // Simuler le paiement (toujours réussi pour le moment)
       await Future.delayed(const Duration(seconds: 2));
       
-      // Créditer le wallet
-      final wallet = await _walletDataSource.crediterWallet(user.id, amount);
+      // Recharger le wallet
+      final wallet = await _walletDataSource.rechargeWallet(
+        user.id,
+        amount,
+        isChauffeur: user.isDriver,
+      );
       
       setState(() {
         _wallet = wallet;

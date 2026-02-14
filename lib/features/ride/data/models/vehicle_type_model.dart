@@ -40,39 +40,30 @@ class VehicleTypeModel extends VehicleType {
     return [
       VehicleTypeModel(
         id: '1',
-        name: 'Économique',
+        name: 'Standard',
         description: 'Voiture standard, confortable',
-        pricePerKm: 250,
+        pricePerKm: 1, // 1 point/km
         capacity: 4,
         icon: '🚗',
-        basePrice: 500,
+        basePrice: 0,
       ),
       VehicleTypeModel(
         id: '2',
         name: 'Confort',
         description: 'Véhicule haut de gamme',
-        pricePerKm: 400,
+        pricePerKm: 2, // 2 points/km
         capacity: 4,
         icon: '🚙',
-        basePrice: 800,
+        basePrice: 0,
       ),
       VehicleTypeModel(
         id: '3',
-        name: 'Van',
-        description: 'Pour les groupes, 6-7 places',
-        pricePerKm: 500,
-        capacity: 7,
-        icon: '🚐',
-        basePrice: 1000,
-      ),
-      VehicleTypeModel(
-        id: '4',
-        name: 'Moto',
-        description: 'Rapide et économique',
-        pricePerKm: 150,
-        capacity: 1,
-        icon: '🏍️',
-        basePrice: 300,
+        name: 'Premium',
+        description: 'Luxe et confort maximum',
+        pricePerKm: 3, // 3 points/km
+        capacity: 4,
+        icon: '🚘',
+        basePrice: 0,
       ),
     ];
   }

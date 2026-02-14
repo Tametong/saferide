@@ -130,27 +130,62 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
       
       final authProvider = context.read<AuthProvider>();
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
       
-      final success = await authProvider.register(
+      // Étape 1: Inscription
+      final registerSuccess = await authProvider.register(
         nom: _nomController.text.trim(),
         prenom: _prenomController.text.trim(),
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+        email: email,
+        password: password,
         telephone: _telephoneController.text.trim(),
         role: widget.userRole ?? 'passager',
         licenseNumber: _isDriver ? _licenseNumberController.text.trim() : null,
         idPhotoPath: _isDriver && _idPhotoFile != null ? _idPhotoFile!.path : null,
       );
 
-      if (success && mounted) {
-        context.go('/home');
-      } else if (mounted) {
+      if (!registerSuccess) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(authProvider.errorMessage ?? 'Erreur d\'inscription'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Étape 2: Connexion automatique après inscription réussie
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authProvider.errorMessage ?? 'Erreur d\'inscription'),
-            backgroundColor: AppColors.error,
+          const SnackBar(
+            content: Text('Inscription réussie! Connexion en cours...'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 2),
           ),
         );
+        
+        // Attendre un peu pour que l'utilisateur voie le message
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        // Login automatique
+        final loginSuccess = await authProvider.login(email, password);
+        
+        if (loginSuccess && mounted) {
+          // Rediriger vers la vérification OTP avec l'email
+          context.go('/otp-verification', extra: email);
+        } else if (mounted) {
+          // Si le login échoue, rediriger vers la page de login
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Inscription réussie! Veuillez vous connecter.'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          context.go('/login');
+        }
       }
     }
   }
@@ -229,6 +264,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Veuillez entrer votre numéro';
+                    }
+                    // Validation: max 10 chiffres pour éviter l'overflow SQL
+                    if (value.length > 10) {
+                      return 'Le numéro ne doit pas dépasser 10 chiffres';
+                    }
+                    // Vérifier que ce sont bien des chiffres
+                    if (!RegExp(r'^\d+$').hasMatch(value)) {
+                      return 'Le numéro doit contenir uniquement des chiffres';
                     }
                     return null;
                   },
