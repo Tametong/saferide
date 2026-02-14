@@ -1,6 +1,6 @@
 class ApiConstants {
   //static const String baseUrl = 'http://10.0.2.2:8000/api';
-  static const String baseUrl = 'https://appride-main-jmpd3p.laravel.cloud/api';
+  static const String baseUrl = 'https://hackaton1-main-f5smt6.laravel.cloud/api';
 
   // Auth
   static const String register = '$baseUrl/register';

@@ -15,15 +15,15 @@ class RoleSelectionScreen extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // Bouton retour
-              IconButton(
+              /*IconButton(
                 icon: const Icon(Icons.arrow_back, color: AppColors.primary),
                 onPressed: () => context.pop(),
                 padding: EdgeInsets.zero,
                 alignment: Alignment.centerLeft,
-              ),
+              ),*/
               
               const SizedBox(height: AppSpacing.xl),
               
