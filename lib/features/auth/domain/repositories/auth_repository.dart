@@ -3,6 +3,7 @@ import '../entities/user.dart';
 abstract class AuthRepository {
   Future<String> login(String email, String password);
   Future<User> verifyOtp(String otpId, String otpCode);
+  Future<void> resendOtp(String email);
   Future<User> register({
     required String nom,
     required String prenom,

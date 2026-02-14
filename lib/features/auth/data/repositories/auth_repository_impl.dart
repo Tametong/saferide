@@ -18,6 +18,11 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<void> resendOtp(String email) {
+    return remoteDataSource.resendOtp(email);
+  }
+
+  @override
   Future<User> register({
     required String nom,
     required String prenom,

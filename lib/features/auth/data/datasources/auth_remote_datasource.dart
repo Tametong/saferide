@@ -31,11 +31,9 @@ class AuthRemoteDataSource {
         }
       }
       
-      // Backend returns otp_id as integer, convert to String for consistency
+      // Retourner l'otp_id pour la vérification (convertir en String)
       final otpId = response.data['otp_id'];
-      final otpIdString = otpId.toString();
-      developer.log('🔑 OTP ID reçu: $otpIdString (type: ${otpId.runtimeType})', name: 'AuthDataSource');
-      return otpIdString;
+      return otpId.toString();
     } catch (e) {
       developer.log('❌ LOGIN - Erreur: $e', name: 'AuthDataSource');
       rethrow;
@@ -69,22 +67,19 @@ class AuthRemoteDataSource {
         }
       }
       
-      // Backend may not return token in verifyOtp response
+      // Gérer le token (peut être null)
       final token = response.data['token'];
       if (token != null) {
         developer.log('🎫 Token reçu: ${token.substring(0, 20)}...', name: 'AuthDataSource');
         apiClient.setAuthToken(token);
       } else {
-        developer.log('⚠️ Aucun token reçu (normal pour verifyOtp)', name: 'AuthDataSource');
+        developer.log('⚠️ Aucun token reçu', name: 'AuthDataSource');
       }
       
-      // Backend returns user as single object, not array
+      // Le user peut être un tableau ou un objet
       dynamic userData = response.data['user'];
-      
-      // Handle case where backend might return array (legacy support)
       if (userData is List && userData.isNotEmpty) {
-        developer.log('⚠️ User reçu comme tableau, extraction du premier élément', name: 'AuthDataSource');
-        userData = userData[0];
+        userData = userData[0]; // Prendre le premier élément si c'est un tableau
       }
       
       final user = UserModel.fromJson(userData);
@@ -93,6 +88,34 @@ class AuthRemoteDataSource {
       return user;
     } catch (e, stackTrace) {
       developer.log('❌ VERIFY OTP - Erreur', name: 'AuthDataSource', error: e, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
+  Future<void> resendOtp(String email) async {
+    developer.log('🔄 RESEND OTP - Début', name: 'AuthDataSource');
+    developer.log('📧 Email: $email', name: 'AuthDataSource');
+    developer.log('🌐 URL: ${ApiConstants.resendOtp}', name: 'AuthDataSource');
+    
+    try {
+      final response = await apiClient.post(
+        ApiConstants.resendOtp,
+        data: {'email': email},
+      );
+      
+      developer.log('✅ RESEND OTP - Succès', name: 'AuthDataSource');
+      developer.log('📦 Status: ${response.statusCode}', name: 'AuthDataSource');
+      developer.log('📦 Response: ${response.data}', name: 'AuthDataSource');
+      
+      // Afficher le message du backend s'il existe
+      if (response.data is Map<String, dynamic>) {
+        final message = response.data['message'] ?? response.data['msg'];
+        if (message != null) {
+          developer.log('💬 Message backend: $message', name: 'AuthDataSource');
+        }
+      }
+    } catch (e, stackTrace) {
+      developer.log('❌ RESEND OTP - Erreur', name: 'AuthDataSource', error: e, stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -156,14 +179,10 @@ class AuthRemoteDataSource {
         }
       }
       
-      // Backend may not return token in register response
       final token = response.data['token'];
-      if (token != null) {
-        developer.log('🎫 Token reçu: ${token.substring(0, 20)}...', name: 'AuthDataSource');
-        apiClient.setAuthToken(token);
-      } else {
-        developer.log('⚠️ Aucun token reçu (normal pour register)', name: 'AuthDataSource');
-      }
+      developer.log('🎫 Token reçu: ${token?.substring(0, 20)}...', name: 'AuthDataSource');
+      
+      apiClient.setAuthToken(token);
       
       final user = UserModel.fromJson(response.data['user']);
       developer.log('👤 User créé: ${user.email} (${user.role})', name: 'AuthDataSource');

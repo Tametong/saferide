@@ -87,6 +87,36 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     }
   }
 
+  Future<void> _resendOtp() async {
+    final authProvider = context.read<AuthProvider>();
+    
+    try {
+      final success = await authProvider.resendOtp(widget.email);
+
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Code OTP renvoyé avec succès'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMessage = authProvider.errorMessage ?? 'Erreur lors de l\'envoi';
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -189,13 +219,27 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               
               const SizedBox(height: AppSpacing.lg),
               
-              // Info text
-              Text(
-                'Le code expire dans 10 minutes',
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-                textAlign: TextAlign.center,
+              // Renvoyer le code
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Vous n\'avez pas reçu le code ? ',
+                    style: AppTextStyles.body.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _resendOtp,
+                    child: Text(
+                      'Renvoyer',
+                      style: AppTextStyles.body.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

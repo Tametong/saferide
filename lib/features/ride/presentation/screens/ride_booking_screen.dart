@@ -754,7 +754,7 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
     if (_searchFocusNode.hasFocus) {
       bottomSheetHeight = MediaQuery.of(context).size.height * 0.4; // Monte à 40% quand on tape
     } else if (_showVehicleSelection) {
-      bottomSheetHeight = 300; // Augmenté pour éviter l'overflow
+      bottomSheetHeight = 360; // Augmenté pour contenir véhicules + bouton + padding
     } else {
       bottomSheetHeight = 100; // Hauteur minimale
     }
@@ -775,6 +775,7 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
       ),
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
       child: SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -882,7 +883,7 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
             
             // Liste horizontale des véhicules
             SizedBox(
-              height: 140,
+              height: 150, // Augmenté de 140 à 150
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: _vehicleTypes.length,
@@ -914,39 +915,45 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           // Emoji du véhicule
                           Text(
                             vehicleType.icon,
-                            style: const TextStyle(fontSize: 40),
+                            style: const TextStyle(fontSize: 36), // Réduit de 40 à 36
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 6), // Réduit de 8 à 6
                           
                           // Nom
                           Text(
                             vehicleType.name,
                             style: AppTextStyles.body.copyWith(
                               fontWeight: FontWeight.bold,
-                              fontSize: 15,
+                              fontSize: 14, // Réduit de 15 à 14
                               color: isSelected ? Colors.white : Colors.black,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 3), // Réduit de 4 à 3
                           
                           // Prix et places
                           Text(
                             '${price.toStringAsFixed(0)}frs → ${vehicleType.capacity}pts',
                             style: AppTextStyles.body.copyWith(
-                              fontSize: 13,
+                              fontSize: 12, // Réduit de 13 à 12
                               color: isSelected ? Colors.white.withValues(alpha: 0.9) : AppColors.textSecondary,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
+                          const SizedBox(height: 2),
                           
                           // Temps
                           Text(
                             '$estimatedTime MIN',
                             style: AppTextStyles.caption.copyWith(
-                              fontSize: 12,
+                              fontSize: 11, // Réduit de 12 à 11
                               color: isSelected ? Colors.white.withValues(alpha: 0.8) : AppColors.textSecondary,
                             ),
                           ),
@@ -959,7 +966,7 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
             ),
             
             if (_selectedVehicleType != null) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () async {
                   // Chercher le chauffeur le plus proche
@@ -1013,6 +1020,7 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 8), // Ajout d'un espace en bas
             ],
           ],
           

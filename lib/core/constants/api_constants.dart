@@ -5,28 +5,30 @@ class ApiConstants {
   static const String register = '$baseUrl/register';
   static const String login = '$baseUrl/login';
   static const String verifyOtp = '$baseUrl/verifyOtp';
+  static const String resendOtp = '$baseUrl/resend-otp';
   static const String profile = '$baseUrl/profile';
 
+  // Ride
+  static const String rideRequest = '$baseUrl/ride/request';
+  static const String rideAccept = '$baseUrl/ride/accept';
+  static const String rideStart = '$baseUrl/ride/start';
+  static const String rideComplete = '$baseUrl/ride/complete';
+
+  // Location
+  static const String locationUpdate = '$baseUrl/location/update';
+  
   // Chauffeur (Driver)
   static const String listeChauffeurs = '$baseUrl/passager/liste-chauffeurs';
   static const String chauffeurProfile = '$baseUrl/chauffeur/profile';
   static const String chauffeurLocation = '$baseUrl/chauffeur/location';
+  static const String passagerLocation = '$baseUrl/passager/location';
   
   // Véhicules
+  static const String chauffeurVehicules = '$baseUrl/chauffeur'; // /{id}/vehicules
   static const String vehicules = '$baseUrl/chauffeur/vehicules';
   
-  // Portefeuille (Wallet) - Passager
-  static const String passagerWalletShow = '$baseUrl/passager/wallet/show';
-  static const String passagerWalletRecharge = '$baseUrl/passager/wallet/recharge';
-  static const String passagerWalletHistorique = '$baseUrl/passager/wallet/historique';
-  
-  // Portefeuille (Wallet) - Chauffeur
-  static const String chauffeurWalletShow = '$baseUrl/chauffeur/wallet/show';
-  static const String chauffeurWalletRecharge = '$baseUrl/chauffeur/wallet/recharge';
-  
-  // Course (Ride)
-  static const String coursePay = '$baseUrl/passager/coursepay';
-  static const String cancelCourse = '$baseUrl/passager/cancelcourse';
+  // Portefeuille (Wallet)
+  static const String portefeuille = '$baseUrl/portefeuille';
   
   // Admin
   static const String adminChauffeurs = '$baseUrl/admin/chauffeurs';

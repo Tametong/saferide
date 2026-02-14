@@ -8,30 +8,19 @@ class WalletRemoteDataSource {
 
   WalletRemoteDataSource(this._apiClient);
 
-  /// Récupérer le portefeuille d'un utilisateur (passager)
-  Future<WalletModel> getWallet(String userId, {bool isChauffeur = false}) async {
+  /// Récupérer le portefeuille d'un utilisateur
+  Future<WalletModel> getWallet(String userId) async {
     try {
       developer.log('💰 Récupération du portefeuille pour user $userId...', name: 'WalletDataSource');
       
-      final endpoint = isChauffeur 
-          ? ApiConstants.chauffeurWalletShow 
-          : ApiConstants.passagerWalletShow;
+      final response = await _apiClient.get('${ApiConstants.portefeuille}/$userId');
+      final responseData = response.data as Map<String, dynamic>;
       
-      final response = await _apiClient.post(
-        endpoint,
-        data: {'iduser': userId},
-      );
-      
-      developer.log('✅ Portefeuille récupéré', name: 'WalletDataSource');
-      developer.log('📦 Response: ${response.data}', name: 'WalletDataSource');
-      
-      // Backend returns raw wallet object, not wrapped in status/data
-      final responseData = response.data;
-      
-      if (responseData is Map<String, dynamic>) {
-        return WalletModel.fromJson(responseData);
+      if (responseData['status'] == 'success' && responseData['data'] != null) {
+        developer.log('✅ Portefeuille récupéré', name: 'WalletDataSource');
+        return WalletModel.fromJson(responseData['data'] as Map<String, dynamic>);
       } else {
-        throw Exception('Format de réponse invalide');
+        throw Exception('Portefeuille non trouvé');
       }
     } catch (e) {
       developer.log('❌ Erreur récupération portefeuille: $e', name: 'WalletDataSource');
@@ -39,63 +28,48 @@ class WalletRemoteDataSource {
     }
   }
 
-  /// Recharger le portefeuille
-  Future<WalletModel> rechargeWallet(String userId, int montant, {bool isChauffeur = false}) async {
+  /// Créditer le portefeuille
+  Future<WalletModel> crediterWallet(String userId, int points) async {
     try {
-      developer.log('💰 Recharge de $montant pour user $userId...', name: 'WalletDataSource');
-      
-      final endpoint = isChauffeur 
-          ? ApiConstants.chauffeurWalletRecharge 
-          : ApiConstants.passagerWalletRecharge;
+      developer.log('💰 Crédit de $points points pour user $userId...', name: 'WalletDataSource');
       
       final response = await _apiClient.post(
-        endpoint,
-        data: {
-          'iduser': userId,
-          'montant': montant,
-        },
+        '${ApiConstants.portefeuille}/$userId/crediter',
+        data: {'points': points},
       );
+      final responseData = response.data as Map<String, dynamic>;
       
-      developer.log('✅ Portefeuille rechargé', name: 'WalletDataSource');
-      developer.log('📦 Response: ${response.data}', name: 'WalletDataSource');
-      
-      // Backend returns raw wallet object, not wrapped in status/data
-      final responseData = response.data;
-      
-      if (responseData is Map<String, dynamic>) {
-        return WalletModel.fromJson(responseData);
+      if (responseData['status'] == 'success' && responseData['data'] != null) {
+        developer.log('✅ Portefeuille crédité', name: 'WalletDataSource');
+        return WalletModel.fromJson(responseData['data'] as Map<String, dynamic>);
       } else {
-        throw Exception('Format de réponse invalide');
+        throw Exception(responseData['message'] ?? 'Erreur lors du crédit');
       }
     } catch (e) {
-      developer.log('❌ Erreur recharge portefeuille: $e', name: 'WalletDataSource');
+      developer.log('❌ Erreur crédit portefeuille: $e', name: 'WalletDataSource');
       rethrow;
     }
   }
 
-  /// Récupérer l'historique du portefeuille
-  Future<List<Map<String, dynamic>>> getWalletHistory(String userId) async {
+  /// Débiter le portefeuille
+  Future<WalletModel> debiterWallet(String userId, int points) async {
     try {
-      developer.log('📜 Récupération historique portefeuille pour user $userId...', name: 'WalletDataSource');
+      developer.log('💰 Débit de $points points pour user $userId...', name: 'WalletDataSource');
       
-      final response = await _apiClient.get(
-        ApiConstants.passagerWalletHistorique,
-        queryParameters: {'iduser': userId},
+      final response = await _apiClient.post(
+        '${ApiConstants.portefeuille}/$userId/debiter',
+        data: {'points': points},
       );
+      final responseData = response.data as Map<String, dynamic>;
       
-      developer.log('✅ Historique récupéré', name: 'WalletDataSource');
-      
-      final responseData = response.data;
-      
-      if (responseData is List) {
-        return List<Map<String, dynamic>>.from(responseData);
-      } else if (responseData is Map<String, dynamic> && responseData['data'] is List) {
-        return List<Map<String, dynamic>>.from(responseData['data']);
+      if (responseData['status'] == 'success' && responseData['data'] != null) {
+        developer.log('✅ Portefeuille débité', name: 'WalletDataSource');
+        return WalletModel.fromJson(responseData['data'] as Map<String, dynamic>);
       } else {
-        return [];
+        throw Exception(responseData['message'] ?? 'Erreur lors du débit');
       }
     } catch (e) {
-      developer.log('❌ Erreur récupération historique: $e', name: 'WalletDataSource');
+      developer.log('❌ Erreur débit portefeuille: $e', name: 'WalletDataSource');
       rethrow;
     }
   }
